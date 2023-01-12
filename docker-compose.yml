@@ -1,65 +1,62 @@
-version: "3.4"
-
+version: '3.9'
 services:
-  php:
-    build:
-      context: .
-      target: app_php
-      args:
-        SYMFONY_VERSION: ${SYMFONY_VERSION:-}
-        STABILITY: ${STABILITY:-stable}
-    restart: unless-stopped
-    volumes:
-      - php_socket:/var/run/php
-    healthcheck:
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 30s
-    environment:
-      # Run "composer require symfony/orm-pack" to install and configure Doctrine ORM
-      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=${POSTGRES_VERSION:-14}
-      # Run "composer require symfony/mercure-bundle" to install and configure the Mercure integration
-      MERCURE_URL: ${CADDY_MERCURE_URL:-http://caddy/.well-known/mercure}
-      MERCURE_PUBLIC_URL: https://${SERVER_NAME:-localhost}/.well-known/mercure
-      MERCURE_JWT_SECRET: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
+    db:
+        image: bitnami/mysql:8.0-debian-11
+        ports:
+            - "${MYSQL_PORT}:3306"
+        environment:
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+            MYSQL_DATABASE: ${MYSQL_DATABASE}
+            MYSQL_USER: ${MYSQL_USER}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+        volumes:
+            - 'mysql_data:/bitnami/mysql/data'
 
-  caddy:
-    build:
-      context: .
-      target: app_caddy
-    depends_on:
-      - php
-    environment:
-      SERVER_NAME: ${SERVER_NAME:-localhost, caddy:80}
-      MERCURE_PUBLISHER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
-      MERCURE_SUBSCRIBER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
-    restart: unless-stopped
-    volumes:
-      - php_socket:/var/run/php
-      - caddy_data:/data
-      - caddy_config:/config
-    ports:
-      # HTTP
-      - target: 80
-        published: ${HTTP_PORT:-80}
-        protocol: tcp
-      # HTTPS
-      - target: 443
-        published: ${HTTPS_PORT:-443}
-        protocol: tcp
-      # HTTP/3
-      - target: 443
-        published: ${HTTP3_PORT:-443}
-        protocol: udp
+    php:
+        build:
+            context: ./php-fpm
+            args:
+                PHP_XDEBUG_MODE: ${PHP_XDEBUG_MODE}
+                PHP_XDEBUG_CLIENT_PORT: ${PHP_XDEBUG_CLIENT_PORT}
+                PHP_XDEBUG_CLIENT_HOST: ${PHP_XDEBUG_CLIENT_HOST}
+                SYMFONY_CLI_VERSION: 4.27.4
+        ports:
+            - "9000:9000"
+        volumes:
+            - ./symfony:/var/www/symfony:cached
+            - ./logs/symfony:/var/www/symfony/var/log:cached
+        depends_on:
+            - db
 
-# Mercure is installed as a Caddy module, prevent the Flex recipe from installing another service
-###> symfony/mercure-bundle ###
-###< symfony/mercure-bundle ###
+    phpmyadmin:
+        image: bitnami/phpmyadmin:5-debian-11
+        environment:
+            - PMA_HOST=db
+            - PMA_USER=root
+            - PMA_PASSWORD=${MYSQL_ROOT_PASSWORD}
+        ports:
+            - '8080:8080'
+            - '8443:443'
+        restart: unless-stopped
 
+    nginx:
+        build: 
+            context: ./nginx
+            args:
+                NGINX_SYMFONY_SERVER_NAME: ${NGINX_SYMFONY_SERVER_NAME}
+                KIBANA_PORT: ${KIBANA_PORT}
+        ports:
+            - "8081:80"
+        depends_on:
+            - php
+        environment:
+            - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/conf.d
+            - NGINX_ENVSUBST_TEMPLATE_DIR=/etc/nginx/templates
+            - NGINX_ENVSUBST_TEMPLATE_SUFFIX=.template
+            - NGINX_SYMFONY_SERVER_NAME=${NGINX_SYMFONY_SERVER_NAME}
+        volumes:
+            - ./symfony:/var/www/symfony
+        
 volumes:
-  php_socket:
-  caddy_data:
-  caddy_config:
-###> symfony/mercure-bundle ###
-###< symfony/mercure-bundle ###
+  mysql_data:
+    driver: local

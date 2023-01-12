@@ -1,15 +1,23 @@
+# volumes
+/logs
+/db
+
+/.env.*
+
+# IDE setting
+## PhpStorm
+.idea
+
 
 ###> symfony/framework-bundle ###
-/.env.local
-/.env.local.php
-/.env.*.local
-/public/bundles/
-/var/
-/vendor/
+/symfony/config/secrets/prod/prod.decrypt.private.php
+/symfony/public/bundles/
+/symfony/var/
+/symfony/vendor/
 ###< symfony/framework-bundle ###
 
-###> symfony/phpunit-bridge ###
-.phpunit
-.phpunit.result.cache
-/phpunit.xml
-###< symfony/phpunit-bridge ###
+###> phpunit/phpunit ###
+/symfony/.phpunit
+/symfony/.phpunit.result.cache
+/symfony/phpunit.xml
+###< phpunit/phpunit ###
