@@ -72,4 +72,4 @@ WORKDIR /var/www/symfony
 
 CMD ["php-fpm81", "-F"]
 
-EXPOSE 9001
+EXPOSE 9000
